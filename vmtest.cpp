@@ -1,7 +1,7 @@
 /*
 
 Author: Nate Killoran
-Year  : 2025
+2025 - 2026
 
 #README
 
@@ -9,7 +9,7 @@ C/C++ Register Based Virtual Machine
 Everything is contained in this one file
 written completely from scratch, including all the string parsing
 
-Video explaining the basic VM outline and the tests: 
+Video explaining the basic VM outline and the tests:
 https://www.youtube.com/watch?v=Pp9-9z29x30
 
 This is the third language I've written (previous 2 were created based off the book 'Crafting Interpreters' by Robert Nystrom)
@@ -31,7 +31,7 @@ What will happen, is all the tests will run after another, printing all the oper
 Once those run, you will enter the repl mode, where you can type in your own commands to the console
 So run the program, see the initial printf dump, and then type:
 
-# REPL EXAMPLE (press enter after every line you type into the console)
+# REPL EXAMPLE (press enter after every line you type in)
 
 LOAD $0 #1  
 LOAD $1 #2
@@ -478,6 +478,63 @@ enum Opcode {
     OP_ILGL = 255, //illegal
 
 };
+
+const char* opcodeStr(Opcode code){
+    switch(code){
+        case OP_HLT:{return "OP_HLT";}break;
+        case OP_LOAD:{return "OP_LOAD";}break;
+        case OP_LOAD_REG_TO_REG:{return "OP_LOAD_REG_TO_REG";}break;
+        case OP_LOAD_IMM_TO_REG:{return "OP_LOAD_IMM_TO_REG";}break;
+        case OP_LOAD_LABEL_TO_REG:{return "OP_LOAD_LABEL_TO_REG";}break;
+        case OP_LOAD_REG_ADDR_TO_REG:{return "OP_LOAD_REG_ADDR_TO_REG";}break;
+        case OP_LOAD_OFFSET_REG_ADDR_TO_REG:{return "OP_LOAD_OFFSET_REG_ADDR_TO_REG";}break;
+        case OP_LOAD_REG_TO_REG_ADDR:{return "OP_LOAD_REG_TO_REG_ADDR";}break;
+        case OP_LOAD_CONST:{return "OP_LOAD_CONST";}break;
+        case OP_LOAD_DATA_ADDR_TO_ADDR:{return "OP_LOAD_DATA_ADDR_TO_ADDR";}break;
+        case OP_LOAD_REG_TO_OFFSET_REG_ADDR:{return "OP_LOAD_REG_TO_OFFSET_REG_ADDR";}break;
+        case OP_LOAD_OFFSET_REG_ADDR_TO_REG_ADDR:{return "OP_LOAD_OFFSET_REG_ADDR_TO_REG_ADDR";}break;
+        case OP_LOAD_REG_ADDR_TO_OFFSET_REG_ADDR:{return "OP_LOAD_REG_ADDR_TO_OFFSET_REG_ADDR";}break;
+        case OP_LOAD_OFFSET_REG_ADDRESS_TO_REG:{return "OP_LOAD_OFFSET_REG_ADDRESS_TO_REG";}break;
+        case OP_LOAD_REG_TO_OFFSET_REG_ADDRESS:{return "OP_LOAD_REG_TO_OFFSET_REG_ADDRESS";}break;
+        case OP_ADD_REG_TO_REG:{return "OP_ADD_REG_TO_REG";}break;
+        case OP_SUB_REG_TO_REG:{return "OP_SUB_REG_TO_REG";}break;
+        case OP_MUL_REG_TO_REG:{return "OP_MUL_REG_TO_REG";}break;
+        case OP_DIV_REG_TO_REG:{return "OP_DIV_REG_TO_REG";}break;
+        case OP_ADD_CONSTANT_TO_REG:{return "OP_ADD_CONSTANT_TO_REG";}break;
+        case OP_JMP:{return "OP_JMP";}break;
+        case OP_JMPF:{return "OP_JMPF";}break;
+        case OP_JMPB:{return "OP_JMPB";}break;
+        case OP_JMP_CONSTANT:{return "OP_JMP_CONSTANT";}break;
+        case OP_JMP_LABEL:{return "OP_JMP_LABEL";}break;
+        case OP_JEQ_CONSTANT:{return "OP_JEQ_CONSTANT";}break;
+        case OP_JEQ_REG_TO_REG_CONSTANT:{return "OP_JEQ_REG_TO_REG_CONSTANT";}break;
+        case OP_JEQ_REGISTER_ADDRESS:{return "OP_JEQ_REGISTER_ADDRESS";}break;
+        case OP_EQ:{return "OP_EQ";}break;
+        case OP_NEQ:{return "OP_NEQ";}break;
+        case OP_GT:{return "OP_GT";}break;
+        case OP_LT:{return "OP_LT";}break;
+        case OP_GTQ:{return "OP_GTQ";}break;
+        case OP_LTQ:{return "OP_LTQ";}break;
+        case OP_JEQ_REG:{return "OP_JEQ_REG";}break;
+        case OP_ALOC:{return "OP_ALOC";}break;
+        case OP_EQ_INDIRECT_REG_TO_REG:{return "OP_EQ_INDIRECT_REG_TO_REG";}break;
+        case OP_EQ_CONST_TO_REG:{return "OP_EQ_CONST_TO_REG";}break;
+        case OP_INC:{return "OP_INC";}break;
+        case OP_DEC:{return "OP_DEC";}break;
+        case OP_PRT:{return "OP_PRT";}break;
+        case OP_PRT_ADDRESS:{return "OP_PRT_ADDRESS";}break;
+        case OP_PRT_REG:{return "OP_PRT_REG";}break;
+        case OP_PUSH_REG:{return "OP_PUSH_REG";}break;
+        case OP_POP_REG:{return "OP_POP_REG";}break;
+        case OP_CALL:{return "OP_CALL";}break;
+        case OP_RET:{return "OP_RET";}break;
+        case OP_SYSCALL:{return "OP_SYSCALL";}break;
+        case OP_COUNT:{return "OP_COUNT";}break;
+        case OP_ILGL:{return "OP_ILGL";}break;
+        default:{return "";}break;
+    }
+    return "";
+}
 
 enum addressing_mode {
     ADDR_NONE, //$0
@@ -962,7 +1019,7 @@ inline bool executeInstruction(VM& vm) {
         return false;
     }break;
 
-               //LOAD [$0 + 4] [$1]
+    //LOAD [$0 + 4] [$1]
     case OP_LOAD_REG_ADDR_TO_OFFSET_REG_ADDR: {
         printf("%2lu: LOAD REG ADDR TO OFFSET REG ADDR ENCOUNTERED at pc %lu :    ", currentByte, vm.pc - 1);
 
@@ -989,7 +1046,7 @@ inline bool executeInstruction(VM& vm) {
         return false;
     }break;
 
-                                            //LOAD $0 [$1 + 4]
+    //LOAD $0 [$1 + 4]
     case OP_LOAD_OFFSET_REG_ADDR_TO_REG: {
         printf("%2lu: LOAD OFFSET REG ADDR TO REG ENCOUNTERED at pc %lu :    ", currentByte, vm.pc - 1);
 
@@ -1007,8 +1064,45 @@ inline bool executeInstruction(VM& vm) {
         printf("LOAD $%u [$%u + %u]\n", reg1, reg2, offset);
         return false;
     }break;
+    //LOAD [$1 + 4] $0
+    case OP_LOAD_REG_TO_OFFSET_REG_ADDR: {
+        printf("%2lu: OP_LOAD_REG_TO_OFFSET_REG_ADDR ENCOUNTERED at pc %lu :    ", currentByte, vm.pc - 1);
+        u8 reg1 = vm.bytecode[vm.pc++];
+        u8 offset = vm.bytecode[vm.pc++];
+        u8 reg2 = vm.bytecode[vm.pc++];
+        vm.mem[vm.registers[reg1] + offset] = vm.registers[reg2];
+        if (vm.registers[reg1] + offset >= MAX_MEM || vm.registers[reg1] + offset < 0) {
+            printf("LOAD memory offset addressing error!\n");
+            vmMemError(vm, "Attempting to address memory out of bounds!", currentByte, vm.registers[reg2] + offset, MAX_MEM);
+            return true;
+        }
+        printf("LOAD [$%u + %u] $%u \n", reg1, offset, reg2);
+        return false;
+    }break;
 
-                                       //LOAD [$0] [$1 + 4]
+    case OP_LOAD_REG_TO_REG_ADDR:{
+        printf("%2lu: LOAD REG TO REG ADDR ENCOUNTERED at pc %lu :    ", currentByte, vm.pc - 1);
+        u8 reg1 = vm.bytecode[vm.pc++];
+        u8 reg2 = vm.bytecode[vm.pc++];
+        u8 offset = vm.bytecode[vm.pc++];
+
+        if (vm.registers[reg1] + offset >= MAX_MEM || vm.registers[reg1] + offset < 0) {
+            printf("LOAD memory offset addressing error!\n");
+            vmMemError(vm, "Attempting to address memory out of bounds!", currentByte, vm.registers[reg1] + offset, MAX_MEM);
+            return true;
+        }
+
+        if (vm.registers[reg2] >= MAX_MEM || vm.registers[reg2] < 0) {
+            printf("LOAD memory addressing error!\n");
+            vmMemError(vm, "Attempting to address memory out of bounds!", currentByte, vm.registers[reg2], MAX_MEM);
+            return true;
+        }
+
+        vm.mem[vm.registers[reg1] + offset] = vm.registers[reg2];
+        printf("LOAD [$%u + %u] $%u \n", reg1, offset, reg2);
+        return false;
+    }break;
+    //LOAD [$0] [$1 + 4]
     case OP_LOAD_OFFSET_REG_ADDR_TO_REG_ADDR: {
         printf("%2lu: LOAD OFFSET REG ADDR TO REG ADDR ENCOUNTERED at pc %lu :    ", currentByte, vm.pc - 1);
         u8 reg1 = vm.bytecode[vm.pc++];
@@ -1342,6 +1436,7 @@ inline bool executeInstruction(VM& vm) {
 
 
     default:
+        printf("UNKNOWN OPCODE! %u %s\n", vm.bytecode[vm.pc], opcodeStr((Opcode)vm.bytecode[vm.pc]));
         Assert(!"invalid opcode!");
         return true;
     }
@@ -3430,13 +3525,13 @@ void test_framePointer(REPL* repl) {
     const char* command = "\
     LOAD $0 #2          ;0  \n\
     LOAD $1 #3          ;4  \n\
-    PUSH $0             ;8  \n\
-    PUSH $1             ;12 \n\
-    CALL addtest        ;16 \n\
+    PUSH $0             ;8  stack is now at 4\n\
+    PUSH $1             ;12 stack is now at 8\n\
+    CALL addtest        ;16 pushes return address onto stack, stack is now at 12\n\
     HLT                 ;20 \n\
                             \n\
     addtest:                \n\
-    PUSH $30            ;24 save old frame pointer                      \n\
+    PUSH $30            ;24 save old frame pointer to stack, now at 16  \n\
     LOAD $30 $31        ;28 set frame pointer to current stack pointer  \n\
     LOAD $0 [$30 + 16]  ;32                                             \n\
     LOAD $1 [$30 + 12]  ;36                                             \n\
@@ -3585,6 +3680,43 @@ void test_repl_reg_val(const char* command, u32 reg, int val) {
 
 }
 
+void test_compiler(REPL* repl) {
+    reset_vm(&repl->vm);
+
+    const char* command = "\
+        LOAD $0  #12        ;0\n\
+        SUB $31 $0          ;4\n\
+        LOAD $30 $31        ;8\n\
+        LOAD  $0 #1         ;12\n\
+        LOAD  [$30 + 4] $0  ;16\n\
+        LOAD  $0 #2         ;20\n\
+        LOAD  [$30 + 8] $0  ;24\n\
+        LOAD  $0 #0         ;28\n\
+        LOAD  [$30 + 12] $0 ;32\n\
+        LOAD  $0 [$30 + 4]  ;36\n\
+        LOAD  $1 [$30 + 8]  ;40\n\
+        ADD $0 $1           ;44\n\
+        LOAD  [$30 + 12] $0 ;48\n\
+    ";
+
+    size_t len = handmade_strlen(command);
+    Assert(len < MAX_REPL_BUFFER);
+    char buffer[MAX_REPL_BUFFER];
+    memcpy(buffer, command, len);
+
+    buffer[len] = 0;
+    Scanner* scanner = &repl->scanner;
+    repl->parser = {}; //clear 
+    repl->scanner = {}; //clear 
+    scanner->line = 1;
+    scanner->current = buffer;
+    scanner->start = buffer;
+
+    eval_repl_entry(repl, buffer);
+    Assert(repl->vm.registers[0] == 3);
+}
+
+
 
 void vm_repl() {
     char buffer[MAX_REPL_BUFFER];
@@ -3717,7 +3849,7 @@ void vm_test() {
     test_fib(repl);
     test_framePointer(repl);
     test_syscall(repl);
-
+    test_compiler(repl);
     free(repl);//, sizeof(REPL)
 
     // vm_run(*vm);
@@ -3736,4 +3868,6 @@ void vm_test() {
 int main(){
     vm_test();
 }
+
+
 
