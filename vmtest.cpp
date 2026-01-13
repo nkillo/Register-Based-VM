@@ -390,7 +390,7 @@ symbol_table_entry* getAssemblerSymbolTableEntry(symbol_table* table, char* key,
 #define MAX_MEM 256
 #define STACK_START (MAX_MEM - 4)//each entry on the stack is 4 bytes
 #define MAX_JUMPS 32 //no way to determine if we are in an infinite loop, no way to know when to reset jumps, so we hard limit how many jumps a program can make
-#define MAX_REPL_BUFFER 1024
+#define MAX_REPL_BUFFER 2048
 #define MAX_VM_MEM (8 * 1024 * 1024) //8 MB MAX
 
 enum generic_opcode {
@@ -584,7 +584,7 @@ struct VM {
     AssemblerBackPatch backPatchTable[256];
     u32 backPatchTableSize;//locations in the bytecode where we need to backpatch with the label we find
     u8 opLookupTable[GEN_COUNT][ADDR_MODE_COUNT][ADDR_MODE_COUNT][ADDR_MODE_COUNT];//very wasteful, but fits in a few KB, make into a hashmap
-
+    int instructionsExecuted;
 };
 
 
@@ -662,7 +662,27 @@ struct Scanner {
     char* start;
     char* current;
     int line;
+    char* lines[256];
 };
+
+void printScannerLine(Scanner* scanner, int line){
+    char temp[256] = {};
+    char* str = scanner->lines[line];
+    int count = 0;
+    //skip initial whitespace between newline and first char
+    while(*str != 0 && (*str == ' ' || *str == '\t')){
+        str++;
+    }
+    while(*str != 0 && *str != '\n'){
+        temp[count] = *str;
+        str++;
+        count++;
+        Assert(count < 256);
+    }   
+                                      //BOLD RED                        //RESET
+    printf("%s%-38s || LINE : %d%s\n","\033[1;31m", temp, line,"\033[0m");
+}
+
 
 enum Precedence{
     PREC_NONE,
@@ -1442,12 +1462,19 @@ inline bool executeInstruction(VM& vm) {
     }
 }
 
-void vm_run(VM& vm) {
+void vm_run(VM& vm, Scanner* scanner = NULL) {
     bool isDone = false;
+    vm.instructionsExecuted = 0;
     while (!isDone) {
 
-        isDone = executeInstruction(vm);
+        if(scanner){
+            printf("EXECUTION COUNT: %d || ", vm.instructionsExecuted);
+            printScannerLine(scanner, (vm.pc/4)+1);
+        }
 
+        isDone = executeInstruction(vm);
+        
+        vm.instructionsExecuted++;
     }
 }
 
@@ -2052,7 +2079,9 @@ static Token number(Scanner* scanner) {
 
 static Token string(Scanner* scanner) {
     while (charPeek(scanner) != '"' && !isAtEnd(scanner)) {
-        if (charPeek(scanner) == '\n') scanner->line++;
+        if (charPeek(scanner) == '\n'){
+            scanner->line++;
+        } 
         scannerAdvance(scanner);
     }
 
@@ -2067,7 +2096,9 @@ static Token string(Scanner* scanner) {
 Token scanToken(Scanner* scanner) {
     skipWhitespace(scanner);
     scanner->start = scanner->current;
-    if (isAtEnd(scanner)) return makeToken(scanner, TOK_EOF);
+    if (isAtEnd(scanner)) {
+        return makeToken(scanner, TOK_EOF);
+    }
 
     char c = scannerAdvance(scanner);
     //TODO:
@@ -3307,7 +3338,9 @@ void parseInstruction(VM* vm, Parser* parser, Scanner* scanner) {
 int eval_repl_entry(REPL* repl, char* buffer) {
     Scanner* scanner = &repl->scanner;
     Parser* parser = &repl->parser;
+    scanner->lines[1] = buffer;
     repl->vm.backPatchTableSize = 0;
+    printScannerLine(scanner, scanner->line);//print line 1
 
     skipWhitespace(scanner);
     if (*scanner->current == '/') {
@@ -3318,22 +3351,28 @@ int eval_repl_entry(REPL* repl, char* buffer) {
 
         u32 byteCount = repl->vm.byteCount;
         parseAdvance(parser, scanner);
-        while (!tokenMatch(&repl->parser, &repl->scanner, TOK_EOF) && !parser->hadError) {
+        Token curTok = parser->current;
+        while ((curTok.type != TOK_EOF) && !parser->hadError) {
             parseInstruction(&repl->vm, &repl->parser, &repl->scanner);
 
 
             if (parser->current.type == TOK_NEWLINE) {
                 while (parser->current.type == TOK_NEWLINE) {
                     scanner->line++;
+                    Assert(scanner->line < 256);//max line count for now
+                    scanner->lines[scanner->line] = scanner->current;
+                    printScannerLine(scanner, scanner->line);
                     parser_advance(parser, scanner);
                 }
             }
+
             else if (parser->current.type == TOK_EOF) {
                 printf("END OF FILE REACHED!\n");
             }
             else {
                 errorAtCurrent(parser, "Expected next instruction on a new line!");
             }
+            curTok = parser->current;
 
         }
 
@@ -3390,7 +3429,7 @@ int eval_repl_entry(REPL* repl, char* buffer) {
         if (byteCount != repl->vm.byteCount && !parser->hadError) {
             //assume there is always an instruction to execute after we parse, depends on how we want the REPL to work
             // executeInstruction(repl->vm);
-            vm_run(repl->vm);
+            vm_run(repl->vm, scanner);
         }
         else if (parser->hadError) {
             printf("Error in parser! instructions discarded!\n");
@@ -3718,6 +3757,100 @@ void test_compiler(REPL* repl) {
 
 
 
+void test_forloop(REPL* repl) {
+    reset_vm(&repl->vm);
+
+    //locals are x and i 
+    #if 0
+    const char* command = "\
+        LOAD $0  #8         ;0 \n\
+        SUB $31 $0          ;4 \n\
+        LOAD $30 $31        ;8 \n\
+        LOAD  $0 #0         ;12\n\
+        LOAD  [$30 + 4] $0  ;16\n\
+        LOAD  $0 #0         ;20\n\
+        LOAD  [$30 + 8] $0  ;24\n\
+        LOAD $1 [$30 + 8]   ;28\n\
+        ;ONLY HANDLES exact comparison, no greater than or less then \n\
+        LOAD $2 #6          ;32\n\
+        JEQ $1 $2 #72       ;36\n\
+        LOAD $0 [$30 + 4]   ;40\n\
+        LOAD $3 #1          ;44\n\
+        ADD  $0 $3          ;48\n\
+        LOAD [$30 + 4] $0   ;52\n\
+        ;for loops can ONLY handle prefix ++ for now and generate an INC operator\n\
+        INC $1              ;56\n\
+        LOAD [$30 + 8] $1   ;60\n\
+        LOAD $4 #36         ;64\n\
+        JMPB $4             ;68\n\
+        HLT                 ;72\n\
+    ";
+    #else
+//     const char* command = "\
+// LOAD     $0          #8         ;0  \n\
+// SUB      $31         $0         ;4  \n\
+// LOAD     $30         $31        ;8  \n\
+// LOAD     $0          #0         ;12 \n\
+// LOAD    [$30 + 4 ]   $0         ;16 \n\
+// LOAD     $0          #0         ;20 \n\
+// LOAD    [$30 + 8 ]   $0         ;24 \n\
+// LOAD     $0         [$30 + 8 ]  ;28 \n\
+// LOAD     $1         #5         ;32 \n\
+// JEQ      $0         $1         #72  ;36 \n\
+// LOAD     $2         [$30 + 4 ]  ;40 \n\
+// LOAD     $3         #1         ;44 \n\
+// ADD      $2          $3         ;48 \n\
+// LOAD    [$30 + 4 ]   $2         ;52 \n\
+// INC      $0                     ;56 \n\
+// LOAD    [$30 + 8 ]   $0         ;60 \n\
+// LOAD    $4   #36        ;64 \n\
+// JMPB     $4          ;68 \n\
+//     ";
+    const char* command = "\
+        LOAD     $0          #16        ;0  \n\
+        SUB      $31         $0         ;4  \n\
+        LOAD     $30         $31        ;8  \n\
+        LOAD     $0          #0         ;12 \n\
+        LOAD    [$30 + 4 ]   $0         ;16 \n\
+        LOAD     $0          #1         ;20 \n\
+        LOAD    [$30 + 8 ]   $0         ;24 \n\
+        LOAD     $0          #0         ;28 \n\
+        LOAD    [$30 + 12]   $0         ;32 \n\
+        LOAD     $0         [$30 + 12]  ;36 \n\
+        LOAD     $1          #7         ;40 \n\
+        JEQ      $0          $1     #96 ;44 \n\
+        LOAD     $2         [$30 + 8 ]  ;48 \n\
+        LOAD    [$30 + 16]   $2         ;52 \n\
+        LOAD     $2         [$30 + 8 ]  ;56 \n\
+        LOAD     $3         [$30 + 4 ]  ;60 \n\
+        ADD      $2          $3         ;64 \n\
+        LOAD    [$30 + 8 ]   $2         ;68 \n\
+        LOAD     $4         [$30 + 16]  ;72 \n\
+        LOAD    [$30 + 4 ]   $4         ;76 \n\
+        INC      $0                     ;80 \n\
+        LOAD    [$30 + 16]   $0         ;84 \n\
+        LOAD     $5          #52        ;88 \n\
+        JMPB     $5                     ;92 \n\
+";
+    #endif
+    size_t len = handmade_strlen(command);
+    Assert(len < MAX_REPL_BUFFER);
+    char buffer[MAX_REPL_BUFFER];
+    memcpy(buffer, command, len);
+
+    buffer[len] = 0;
+    Scanner* scanner = &repl->scanner;
+    repl->parser = {}; //clear 
+    repl->scanner = {}; //clear 
+    scanner->line = 1;
+    scanner->current = buffer;
+    scanner->start = buffer;
+
+    eval_repl_entry(repl, buffer);
+    Assert(repl->vm.registers[2] == 21);
+}
+
+
 void vm_repl() {
     char buffer[MAX_REPL_BUFFER];
     REPL* repl = (REPL*)malloc(sizeof(REPL));
@@ -3850,6 +3983,7 @@ void vm_test() {
     test_framePointer(repl);
     test_syscall(repl);
     test_compiler(repl);
+    test_forloop(repl);
     free(repl);//, sizeof(REPL)
 
     // vm_run(*vm);
