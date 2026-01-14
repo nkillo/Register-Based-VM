@@ -400,6 +400,7 @@ enum generic_opcode {
     GEN_MUL,
     GEN_DIV,
     GEN_JEQ,
+    GEN_JNE,
     GEN_EQ,
     GEN_JMP,
     GEN_COUNT,
@@ -439,6 +440,7 @@ enum Opcode {
     OP_JMP_CONSTANT,
     OP_JMP_LABEL,
     OP_JEQ_CONSTANT,
+    OP_JNE_CONSTANT,
     OP_JEQ_REG_TO_REG_CONSTANT,
 
     OP_JEQ_REGISTER_ADDRESS,
@@ -507,6 +509,7 @@ const char* opcodeStr(Opcode code){
         case OP_JMP_CONSTANT:{return "OP_JMP_CONSTANT";}break;
         case OP_JMP_LABEL:{return "OP_JMP_LABEL";}break;
         case OP_JEQ_CONSTANT:{return "OP_JEQ_CONSTANT";}break;
+        case OP_JNE_CONSTANT:{return "OP_JNE_CONSTANT";}break;
         case OP_JEQ_REG_TO_REG_CONSTANT:{return "OP_JEQ_REG_TO_REG_CONSTANT";}break;
         case OP_JEQ_REGISTER_ADDRESS:{return "OP_JEQ_REGISTER_ADDRESS";}break;
         case OP_EQ:{return "OP_EQ";}break;
@@ -537,12 +540,13 @@ const char* opcodeStr(Opcode code){
 }
 
 enum addressing_mode {
-    ADDR_NONE, //$0
+    ADDR_NONE,
     ADDR_REG, //$0
     ADDR_IMM, //#123 or 123
     ADDR_LABEL, //testLabel
     ADDR_REG_INDIRECT, //[$0]
     ADDR_REG_OFFSET, //[$0 + 4]
+    ADDR_IMM_OFFSET, //[4]
     ADDR_MODE_COUNT, //used as a null value when looking up into the table
 };
 
@@ -614,7 +618,7 @@ enum TokenTypes {
     //assembler tokens
     TOK_INSTRUCTION,
     TOK_LOAD, TOK_ADD, TOK_SUB, TOK_MUL, TOK_DIV, TOK_JMP,
-    TOK_JMPF, TOK_JMPB, TOK_JEQ,
+    TOK_JMPF, TOK_JMPB, TOK_JEQ, TOK_JNE,
     TOK_EQ,
     TOK_NEQ,
     TOK_GT,
@@ -738,6 +742,7 @@ void init_opcode_lookup(VM* vm) {
     vm->opLookupTable[GEN_DIV][ADDR_REG][ADDR_REG][ADDR_REG] = OP_DIV_REG_TO_REG;
     vm->opLookupTable[GEN_JEQ][ADDR_REG][ADDR_NONE][ADDR_NONE] = OP_JEQ_REG;
     vm->opLookupTable[GEN_JEQ][ADDR_IMM][ADDR_NONE][ADDR_NONE] = OP_JEQ_CONSTANT;
+    vm->opLookupTable[GEN_JNE][ADDR_IMM][ADDR_NONE][ADDR_NONE] = OP_JNE_CONSTANT;
     vm->opLookupTable[GEN_JEQ][ADDR_REG][ADDR_REG][ADDR_IMM] = OP_JEQ_REG_TO_REG_CONSTANT;
     vm->opLookupTable[GEN_EQ][ADDR_REG][ADDR_REG][ADDR_NONE] = OP_EQ;
     vm->opLookupTable[GEN_EQ][ADDR_REG_INDIRECT][ADDR_REG][ADDR_NONE] = OP_EQ_INDIRECT_REG_TO_REG;
@@ -957,6 +962,7 @@ inline bool executeInstruction(VM& vm) {
         printf("%2lu: LT ENCOUNTERED at pc %lu\n", currentByte, vm.pc - 1);
         u8 reg1 = nextByte(vm);
         u8 reg2 = nextByte(vm);
+        printf("$%d < $%d = %d < %d\n", reg1, reg2, vm.registers[reg1], vm.registers[reg2]);
         if (vm.registers[reg1] < vm.registers[reg2])vm.equalFlag = true;
         else vm.equalFlag = false;
         vm.pc++;//need to pad out to the next instruction
@@ -1241,6 +1247,32 @@ inline bool executeInstruction(VM& vm) {
             vm.pc += 1;//need to pad out to the next instruction
         }
 
+        return false;
+    }break;
+
+    case OP_JNE_CONSTANT: {
+        // __debugbreak();
+        printf("%2lu: JNE ENCOUNTERED at pc %lu, jumpCount: %lu   :    ", currentByte, vm.pc - 1, vm.jumpCount);
+        u16 target = next2Bytes(vm);
+        printf("JNE %u, equalFlag: %d, target: %d\n", target, vm.equalFlag, target);
+        if (!vm.equalFlag) {
+            vm.jumpCount++;
+            printf("equalFlag is FALSE, JUMPING!\n");
+            vm.pc = target;
+            if (vm.pc >= vm.byteCount) {
+                printf("JUMPED TO INVALID MEMORY %lu, EXITING\n", vm.pc);
+                return true;
+            }
+            if (vm.jumpCount >= MAX_JUMPS) {
+                printf("MAX JUMPS %u REACHED! EXITING EXECUTION!\n", MAX_JUMPS);
+                return true;
+            }
+        }
+        else {
+            vm.equalFlag = false;
+            printf("equalFlag is FALSE, not jumping\n");
+            vm.pc += 1;//need to pad out to the next instruction
+        }
         return false;
     }break;
 
@@ -1550,6 +1582,7 @@ const char* tok_to_str(TokenTypes type) {
         case TOK_JMPF: return "TOK_JMPF";
         case TOK_JMPB: return "TOK_JMPB";
         case TOK_JEQ: return "TOK_JEQ";
+        case TOK_JNE: return "TOK_JNE";
         case TOK_EQ: return "TOK_EQ";
         case TOK_NEQ: return "TOK_NEQ";
         case TOK_GT: return "TOK_GT";
@@ -1844,7 +1877,7 @@ static TokenTypes InstructionType(Scanner* scanner) {
                 }
             }
             case 'E': return checkKeyword(scanner, 2, 1, "Q", TOK_JEQ);
-
+            case 'N': return checkKeyword(scanner, 2, 1, "E", TOK_JNE);
             }
         }
     } break;
@@ -1872,6 +1905,7 @@ static TokenTypes InstructionType(Scanner* scanner) {
                 }
             }
             case 'e': return checkKeyword(scanner, 2, 1, "q", TOK_JEQ);
+            case 'n': return checkKeyword(scanner, 2, 1, "e", TOK_JNE);
 
             }
         }
@@ -3279,6 +3313,7 @@ void parseInstruction(VM* vm, Parser* parser, Scanner* scanner) {
     case TOK_LTQ: { parse2Regs(vm, parser, scanner, Opcode::OP_LTQ); }break;
 
     case TOK_JEQ: { parseGEN(vm, parser, scanner, generic_opcode::GEN_JEQ); }break;
+    case TOK_JNE: { parseGEN(vm, parser, scanner, generic_opcode::GEN_JNE); }break;
     case TOK_JMP: { parseGEN(vm, parser, scanner, generic_opcode::GEN_JMP); }break;
     case TOK_JMPF: { parseReg(vm, parser, scanner, Opcode::OP_JMPF); }break;
     case TOK_JMPB: { parseReg(vm, parser, scanner, Opcode::OP_JMPB); }break;
@@ -3786,26 +3821,6 @@ void test_forloop(REPL* repl) {
         HLT                 ;72\n\
     ";
     #else
-//     const char* command = "\
-// LOAD     $0          #8         ;0  \n\
-// SUB      $31         $0         ;4  \n\
-// LOAD     $30         $31        ;8  \n\
-// LOAD     $0          #0         ;12 \n\
-// LOAD    [$30 + 4 ]   $0         ;16 \n\
-// LOAD     $0          #0         ;20 \n\
-// LOAD    [$30 + 8 ]   $0         ;24 \n\
-// LOAD     $0         [$30 + 8 ]  ;28 \n\
-// LOAD     $1         #5         ;32 \n\
-// JEQ      $0         $1         #72  ;36 \n\
-// LOAD     $2         [$30 + 4 ]  ;40 \n\
-// LOAD     $3         #1         ;44 \n\
-// ADD      $2          $3         ;48 \n\
-// LOAD    [$30 + 4 ]   $2         ;52 \n\
-// INC      $0                     ;56 \n\
-// LOAD    [$30 + 8 ]   $0         ;60 \n\
-// LOAD    $4   #36        ;64 \n\
-// JMPB     $4          ;68 \n\
-//     ";
     const char* command = "\
         LOAD     $0          #16        ;0  \n\
         SUB      $31         $0         ;4  \n\
@@ -3818,19 +3833,20 @@ void test_forloop(REPL* repl) {
         LOAD    [$30 + 12]   $0         ;32 \n\
         LOAD     $0         [$30 + 12]  ;36 \n\
         LOAD     $1          #7         ;40 \n\
-        JEQ      $0          $1     #96 ;44 \n\
-        LOAD     $2         [$30 + 8 ]  ;48 \n\
-        LOAD    [$30 + 16]   $2         ;52 \n\
-        LOAD     $2         [$30 + 8 ]  ;56 \n\
-        LOAD     $3         [$30 + 4 ]  ;60 \n\
-        ADD      $2          $3         ;64 \n\
-        LOAD    [$30 + 8 ]   $2         ;68 \n\
-        LOAD     $4         [$30 + 16]  ;72 \n\
-        LOAD    [$30 + 4 ]   $4         ;76 \n\
-        INC      $0                     ;80 \n\
-        LOAD    [$30 + 16]   $0         ;84 \n\
-        LOAD     $5          #52        ;88 \n\
-        JMPB     $5                     ;92 \n\
+        LT       $0          $1         ;44 \n\
+        JNE      #100                 ;48 \n\
+        LOAD     $2         [$30 + 8 ]  ;52 \n\
+        LOAD    [$30 + 16]   $2         ;56 \n\
+        LOAD     $2         [$30 + 8 ]  ;60 \n\
+        LOAD     $3         [$30 + 4 ]  ;64 \n\
+        ADD      $2          $3         ;68 \n\
+        LOAD    [$30 + 8 ]   $2         ;72 \n\
+        LOAD     $4         [$30 + 16]  ;76 \n\
+        LOAD    [$30 + 4 ]   $4         ;80 \n\
+        INC      $0                     ;84 \n\
+        LOAD    [$30 + 16]   $0         ;88 \n\
+        LOAD     $5          #56        ;92 \n\
+        JMPB     $5                     ;96 \n\
 ";
     #endif
     size_t len = handmade_strlen(command);
